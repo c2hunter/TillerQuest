@@ -51,9 +51,6 @@ export default function AbilityForm({
   const guildMembersWithoutUser =
     guildMembers?.filter((member) => member.id !== user.id) || [];
 
-  const lackingResource =
-    user.mana < (ability.manaCost || 0) || user.hp <= (ability.healthCost || 0);
-
   const isDead = user.hp === 0;
 
   const router = useRouter();
@@ -102,12 +99,6 @@ export default function AbilityForm({
       return "Activated";
     } else if (isDead) {
       return "You cannot use abilities while dead";
-    } else if (lackingResource) {
-      return (
-        "Not enough " +
-        (user.hp <= (ability.healthCost || 0) ? "health" : "mana") +
-        " to use this ability."
-      );
     } else if (!diceBox && ability.diceNotation) {
       return "Prepare dice!";
     }
@@ -160,28 +151,29 @@ export default function AbilityForm({
     }
 
     const result = await selectAbility(user.id, targetUsers, ability.name);
-    // if result is only a string, it's an error message
-    if (typeof result === "string") {
-      toast.error(result);
-      setIsLoading(false);
-      router.refresh();
-      return;
-    }
 
-    // if result has a diceRoll, roll the dice
-    if (result?.diceRoll && diceBox) {
-      diceBox
-        .roll(`${ability.diceNotation}@${result.diceRoll}`)
-        .then(() => {
-          toast.success(result.message);
-        })
-        .finally(() => {
-          setIsLoading(false);
-          router.refresh();
-        });
-      // if result has no diceRoll, just show the message
+    if (result.success) {
+      if (diceBox && ability.diceNotation) {
+        diceBox
+          .roll(`${ability.diceNotation}@${result.data.diceRoll}`)
+          .finally(() => {
+            toast.success(result.data.message);
+            setIsLoading(false);
+            router.refresh();
+          });
+      } else if (ability.value) {
+        toast.success(result.data.message);
+        setIsLoading(false);
+        router.refresh();
+      } else {
+        toast.error(
+          "Dice box not initialized, please try again or tell a dungeon master.",
+        );
+        setIsLoading(false);
+        router.refresh();
+      }
     } else {
-      toast.success(result?.message);
+      toast.error(result.error);
       setIsLoading(false);
       router.refresh();
     }
@@ -215,24 +207,13 @@ export default function AbilityForm({
     // when buying an abillity, check passive. if passive immediately activate
     // if passive, disable use button
 
-    await toast.promise(buyAbility(user.id, ability.name), {
-      pending: "Buying ability...",
-      success: {
-        render: ({ data }) => {
-          // router.refresh();
-          return data;
-        },
-      },
-      error: {
-        render({ data }) {
-          return data instanceof Error
-            ? `${data.message}`
-            : "An error occurred while buying the ability.";
-        },
-      },
-    });
+    const result = await buyAbility(user.id, ability.name);
 
-    console.log("Buying ability", ability.name);
+    if (result.success) {
+      toast.success(result.data);
+    } else {
+      toast.error(result.error);
+    }
 
     setIsLoading(false);
     router.refresh();
@@ -265,9 +246,7 @@ export default function AbilityForm({
             <Button
               variant="contained"
               onClick={handleUseAbility}
-              disabled={
-                lackingResource || targetHasPassive || isLoading || isDead
-              }
+              disabled={targetHasPassive || isLoading || isDead}
             >
               {getOwnedButtonText()}
             </Button>

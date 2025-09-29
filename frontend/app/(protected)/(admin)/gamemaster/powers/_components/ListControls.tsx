@@ -7,7 +7,7 @@ import {
   Typography,
 } from "@mui/material";
 import { User } from "@prisma/client";
-import React from "react";
+import { useState, useTransition } from "react";
 import {
   damageUsers,
   giveArenatokenToUsers,
@@ -22,10 +22,11 @@ import Checkbox from "@mui/material/Checkbox";
 import { toast } from "react-toastify";
 
 export default function ListControls({ users }: { users: User[] }) {
-  const [selectedUsers, setSelectedUsers] = React.useState<User[]>([]);
-  const [value, setValue] = React.useState<number>(4);
-  const [isPending, startTransition] = React.useTransition();
-  const [notify, setNotify] = React.useState<boolean>(false);
+  const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
+  const [value, setValue] = useState<number>(3);
+  const [isPending, startTransition] = useTransition();
+  const [notify, setNotify] = useState<boolean>(false);
+  const [reason, setReason] = useState<string>("");
 
   const router = useRouter();
 
@@ -35,6 +36,12 @@ export default function ListControls({ users }: { users: User[] }) {
       return;
     }
 
+    // prepend "Reason:" if reason is defined
+    let reasonString = reason;
+    if (reason) {
+      reasonString = "Reason: " + reason;
+    }
+
     startTransition(async () => {
       switch (action) {
         case "heal":
@@ -42,136 +49,117 @@ export default function ListControls({ users }: { users: User[] }) {
             toast.error("Negative values are not allowed for healing");
             return;
           }
-          await toast.promise(healUsers(selectedUsers, value, notify), {
-            pending: "Healing users...",
-            success: {
-              render: ({ data }) => {
-                return data;
-              },
-            },
-            error: {
-              render: ({ data }) => {
-                return data instanceof Error
-                  ? `${data.message}`
-                  : "An error occurred while healing users.";
-              },
-            },
-          });
+          const healResult = await healUsers(
+            selectedUsers,
+            value,
+            notify,
+            reasonString,
+          );
+
+          if (healResult.success) {
+            toast.success(healResult.data);
+          } else {
+            toast.error(healResult.error);
+          }
+
           break;
         case "damage":
           if (value < 0) {
             toast.error("Negative values are not allowed for damage");
             return;
           }
-          await toast.promise(damageUsers(selectedUsers, value, notify), {
-            pending: "Damaging users...",
-            success: {
-              render: ({ data }) => {
-                return data;
-              },
-            },
-            error: {
-              render: ({ data }) => {
-                return data instanceof Error
-                  ? `${data.message}`
-                  : "An error occurred while damaging users.";
-              },
-            },
-          });
+          const damageResult = await damageUsers(
+            selectedUsers,
+            value,
+            notify,
+            reasonString,
+          );
+
+          if (damageResult.success) {
+            toast.success(damageResult.data);
+          } else {
+            toast.error(damageResult.error);
+          }
+
           break;
         case "xp":
           if (value < 0) {
-            await toast.promise(giveXpToUsers(selectedUsers, value, notify), {
-              pending: "Removing XP from users...",
-              success: {
-                render: () => {
-                  return "XP removed successfully.";
-                },
-              },
-              error: {
-                render: ({ data }) => {
-                  return data instanceof Error
-                    ? `${data.message}`
-                    : "An error occurred while removing XP from users.";
-                },
-              },
-            });
+            const negativeXpResult = await giveXpToUsers(
+              selectedUsers,
+              value,
+              notify,
+              reasonString,
+            );
+
+            if (negativeXpResult.success) {
+              toast.success("XP removed successfully");
+            } else {
+              toast.error(negativeXpResult.error);
+            }
+
             toast.warning(
               "Warning: Users may end up with negative gemstones.",
               { autoClose: false },
             );
           } else {
-            await toast.promise(giveXpToUsers(selectedUsers, value, notify), {
-              pending: "Giving XP to users...",
-              success: {
-                render: ({ data }) => {
-                  return data;
-                },
-              },
-              error: {
-                render: ({ data }) => {
-                  return data instanceof Error
-                    ? `${data.message}`
-                    : "An error occurred while giving XP to users.";
-                },
-              },
-            });
+            const xpResult = await giveXpToUsers(
+              selectedUsers,
+              value,
+              notify,
+              reasonString,
+            );
+
+            if (xpResult.success) {
+              toast.success(xpResult.data);
+            } else {
+              toast.error(xpResult.error);
+            }
+          }
+          break;
+        case "mana":
+          const manaResult = await giveManaToUsers(
+            selectedUsers,
+            value,
+            notify,
+            reasonString,
+          );
+
+          if (manaResult.success) {
+            toast.success(manaResult.data);
+          } else {
+            toast.error(manaResult.error);
           }
 
           break;
-        case "mana":
-          await toast.promise(giveManaToUsers(selectedUsers, value, notify), {
-            pending: "Giving mana to users...",
-            success: {
-              render: ({ data }) => {
-                return data;
-              },
-            },
-            error: {
-              render: ({ data }) => {
-                return data instanceof Error
-                  ? `${data.message}`
-                  : "An error occurred while giving mana to users.";
-              },
-            },
-          });
-          break;
         case "arenatoken":
-          await toast.promise(
-            giveArenatokenToUsers(selectedUsers, value, notify),
-            {
-              pending: "Giving arenatokens to users...",
-              success: {
-                render: ({ data }) => {
-                  return data;
-                },
-              },
-              error: {
-                render: ({ data }) => {
-                  return data instanceof Error
-                    ? `${data.message}`
-                    : "An error occurred while giving arenatokens to users.";
-                },
-              },
-            },
+          const arenaResult = await giveArenatokenToUsers(
+            selectedUsers,
+            value,
+            notify,
+            reasonString,
           );
+
+          if (arenaResult.success) {
+            toast.success(arenaResult.data);
+          } else {
+            toast.error(arenaResult.error);
+          }
+
           break;
         case "gold":
-          await toast.promise(giveGoldToUsers(selectedUsers, value, notify), {
-            pending: "Giving gold to users...",
-            success: {
-              render: ({ data }) => {
-                return data;
-              },
-            },
-            error: {
-              render: ({ data }) => {
-                return data instanceof Error
-                  ? `${data.message}`
-                  : "An error occurred while giving gold to users.";
-              },
-            },
-          });
+          const goldResult = await giveGoldToUsers(
+            selectedUsers,
+            value,
+            notify,
+            reasonString,
+          );
+
+          if (goldResult.success) {
+            toast.success(goldResult.data);
+          } else {
+            toast.error(goldResult.error);
+          }
+
           break;
         default:
           toast.error("No action selected");
@@ -187,7 +175,7 @@ export default function ListControls({ users }: { users: User[] }) {
       </div>
 
       <Paper elevation={5}>
-        <div className="flex justify-center py-3">
+        <div className="flex flex-col items-center justify-center py-3">
           <FormControlLabel
             sx={{ color: "lightgreen" }}
             control={
@@ -198,6 +186,15 @@ export default function ListControls({ users }: { users: User[] }) {
               />
             }
             label="Notify users on Discord"
+          />
+          <Typography variant="overline">
+            Reason(s) for action (optional)
+          </Typography>
+          <TextField
+            variant="outlined"
+            placeholder="Reason(s)"
+            type="text"
+            onChange={(e) => setReason(e.target.value)}
           />
         </div>
         <Typography className=" text-center" variant="h6">
@@ -290,6 +287,7 @@ export default function ListControls({ users }: { users: User[] }) {
             className="w-2/3"
             type="number"
             required
+            defaultValue={value}
             onChange={(e) => setValue(+e.target.value)}
             onFocus={(e) => e.target.select()}
           />
